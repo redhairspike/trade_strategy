@@ -6,7 +6,8 @@
 ---
 
 ## 目前狀態
-- **最新完成**：Cowork 接手確認，回測結論已整合進 SOP（2026-07-03，Cowork）
+- **最新完成**：進度與 SOP 更新已推上 GitHub main（2026-07-03，Code）
+- **前一步**：Cowork 接手確認，回測結論已整合進 SOP（2026-07-03，Cowork）
 - **進行中**：無
 - **下一步候選**：
   1. 5m 資料接入（Yahoo 無 5m 歷史，需券商/付費資料或 Tradovate CSV 匯出）在真實時框直接驗證
@@ -16,6 +17,10 @@
 ---
 
 ## 進度日誌
+
+### 2026-07-03 ｜ Code ｜ 推上 GitHub ｜ ✅ 完成
+- commit `25e4315` push 到 `origin/main`（含回測腳本、SOP 更新、PROGRESS.md）
+- 新增 `.gitignore`：回測產出圖 `tools/*.png` 與 `__pycache__` 不入庫
 
 ### 2026-07-03 ｜ Code ｜ 破底翻假說回測 ｜ ✅ 完成
 - 完善 `tools/reversal_pattern_study.py`，修正 BACKTEST_HANDOFF.md 列出的 5 個已知問題
