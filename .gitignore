@@ -1,0 +1,8 @@
+# 回測產出圖（每次執行會重新生成，不入庫）
+tools/*.png
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
