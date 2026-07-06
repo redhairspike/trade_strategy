@@ -47,6 +47,8 @@
 """
 
 import sys
+import argparse
+from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -724,14 +726,59 @@ def run_selftest():
 
 
 # =========================================================
-# 12. 主程式
+# 12. 本地 CSV 模式（給 market_data 下載的資料回測）
 # =========================================================
 
-def main():
-    if '--selftest' in sys.argv:
-        run_selftest()
+def load_csv(path: Path) -> pd.DataFrame:
+    """讀 market_data 產出的日K CSV（Date,Open,High,Low,Close,Volume）。"""
+    df = pd.read_csv(path)
+    if 'Date' not in df.columns:
+        raise ValueError(f"CSV 缺少 Date 欄位：{path}")
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.set_index('Date').sort_index()
+    for c in ['Open', 'High', 'Low', 'Close', 'Volume']:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors='coerce')
+    df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna(
+        subset=['Open', 'High', 'Low', 'Close'])
+    return df
+
+
+def run_local(path: Path, label: str):
+    print("=" * 58)
+    print("  破底翻失敗 → W底 → 反轉  假說驗證（本地 CSV / 日K）")
+    print(f"  資料：{path.name}")
+    print("=" * 58)
+
+    if not path.exists():
+        print(f"⚠️  找不到檔案：{path}")
+        print("   先用 market_data 下載，例如：")
+        print("   cd market_data && python download.py 大台 小台")
         return
 
+    df = load_csv(path)
+    if len(df) < 80:
+        print(f"⚠️  資料太少（{len(df)} 根），回測意義不大。")
+        return
+    print(f"  載入 {len(df)} 根日K：{df.index[0].date()} → {df.index[-1].date()}")
+
+    # 台指/美股皆為日K，套用 daily 參數
+    params = PARAMS['daily']
+    results = analyze(df, label, params)
+    if CHART_OUTPUT and results:
+        plot_sample(df, results, label)
+        plot_interval_histogram({label: (df, results)})
+
+    print("\n提醒：TAIFEX 只有日K，這是『日線層級』的型態統計；")
+    print("      要驗證 5m/15m『等W底第二低』的進場假說，仍需分鐘資料（MNQ 走 Yahoo）。")
+    print("完成。圖表存在當前目錄。")
+
+
+# =========================================================
+# 13. 主程式
+# =========================================================
+
+def run_yahoo():
     print("=" * 58)
     print("  破底翻失敗 → W底 → 反轉  假說驗證")
     print("  資料：Yahoo Finance (NQ=F)")
@@ -758,6 +805,31 @@ def main():
     plot_interval_histogram(all_results)
     print_summary(all_results)
     print("\n完成。若 CHART_OUTPUT=True，圖表存在當前目錄。")
+
+
+def main():
+    ap = argparse.ArgumentParser(description="破底翻→W底→反轉 假說回測")
+    ap.add_argument('--selftest', action='store_true', help="合成資料自我驗證（免連網）")
+    ap.add_argument('--local', help="market_data/data 內的商品代碼，如 TX / MTX / MNQ")
+    ap.add_argument('--csv', help="自訂日K CSV 路徑")
+    ap.add_argument('--label', default=None, help="圖表/報表標籤")
+    args = ap.parse_args()
+
+    if args.selftest:
+        run_selftest()
+        return
+
+    if args.local or args.csv:
+        if args.local:
+            path = Path(__file__).parent / 'market_data' / 'data' / f'{args.local}_1d.csv'
+            label = args.label or args.local
+        else:
+            path = Path(args.csv)
+            label = args.label or path.stem.replace('_1d', '')
+        run_local(path, label)
+        return
+
+    run_yahoo()
 
 
 if __name__ == '__main__':
