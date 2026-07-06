@@ -6,8 +6,8 @@
 ---
 
 ## 目前狀態
-- **最新完成**：進度與 SOP 更新已推上 GitHub main（2026-07-03，Code）
-- **前一步**：Cowork 接手確認，回測結論已整合進 SOP（2026-07-03，Cowork）
+- **最新完成**：K 棒資料下載器 + K 線 UI 工具建立完成（2026-07-06，Code）
+- **前一步**：進度與 SOP 更新已推上 GitHub main（2026-07-03，Code）
 - **進行中**：無
 - **下一步候選**：
   1. 5m 資料接入（Yahoo 無 5m 歷史，需券商/付費資料或 Tradovate CSV 匯出）在真實時框直接驗證
@@ -17,6 +17,15 @@
 ---
 
 ## 進度日誌
+
+### 2026-07-06 ｜ Code ｜ K 棒資料下載器 + K 線 UI ｜ ✅ 完成
+- 新增 `tools/market_data/`：下載每日 K 棒 CSV + Lightweight Charts K 線 UI
+- 資料來源：免費官方為主 —— 美股期貨(MNQ/MGC/MCL)走 Yahoo；台指(大台TX/小台MTX/微台TMF)走 TAIFEX 官方；tvDatafeed 備援
+- 重點發現：微台 TMF 2024-07-29 才上市（僅 ~1 年），大台/小台歷史 20+ 年 →
+  **回測用大台/小台，下單看微台**（同追蹤加權指數，K 線一致）
+- TAIFEX 官方單次查詢上限 1 個月 → 程式自動逐月分段 + 取每日最活躍合約組連續日K
+- UI 已用 preview 驗證：MNQ(Yahoo) 與 MTX(TAIFEX) 均正確渲染 K 棒+成交量
+- `.gitignore` 加 `tools/market_data/data/*.csv`（可重新下載，不入庫）
 
 ### 2026-07-03 ｜ Code ｜ 安全性：清掉 remote URL 內嵌 token ｜ ✅ 完成
 - 舊 remote URL 內嵌了明文 PAT（外洩風險）→ `git remote set-url` 換成乾淨 URL

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 線檢視器 — trade_strategy</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root { --bg:#131722; --panel:#1c2030; --fg:#d1d4dc; --muted:#787b86; --accent:#2962ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Microsoft JhengHei",sans-serif;
+         background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px;
+           background:var(--panel); border-bottom:1px solid #2a2e39; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  select { background:#2a2e39; color:var(--fg); border:1px solid #363a45;
+           border-radius:6px; padding:6px 10px; font-size:14px; }
+  .meta { color:var(--muted); font-size:12px; }
+  .legend { font-size:13px; font-variant-numeric:tabular-nums; }
+  .legend b { color:var(--fg); font-weight:600; }
+  .up { color:#26a69a; } .down { color:#ef5350; }
+  #chart { width:100vw; height:calc(100vh - 52px); }
+  #hint { padding:20px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 K 線檢視器</h1>
+  <select id="symbol"></select>
+  <span class="meta" id="meta"></span>
+  <span class="legend" id="legend"></span>
+</header>
+<div id="chart"></div>
+<div id="hint"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let chart, candleSeries, volSeries, current = null;
+
+function fmt(n){ return n===undefined||n===null ? '—' : Number(n).toLocaleString('en-US',{maximumFractionDigits:2}); }
+
+function initChart(){
+  const el = $('#chart');
+  chart = LightweightCharts.createChart(el, {
+    layout:{ background:{color:'#131722'}, textColor:'#d1d4dc' },
+    grid:{ vertLines:{color:'#1e222d'}, horzLines:{color:'#1e222d'} },
+    rightPriceScale:{ borderColor:'#2a2e39' },
+    timeScale:{ borderColor:'#2a2e39', rightOffset:6, minBarSpacing:2 },
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal },
+  });
+  candleSeries = chart.addCandlestickSeries({
+    upColor:'#26a69a', downColor:'#ef5350', borderVisible:false,
+    wickUpColor:'#26a69a', wickDownColor:'#ef5350',
+  });
+  volSeries = chart.addHistogramSeries({
+    priceFormat:{type:'volume'}, priceScaleId:'vol',
+  });
+  chart.priceScale('vol').applyOptions({ scaleMargins:{top:0.82, bottom:0} });
+
+  chart.subscribeCrosshairMove(p => {
+    if(!p || !p.time || !p.seriesData){ return; }
+    const c = p.seriesData.get(candleSeries);
+    const v = p.seriesData.get(volSeries);
+    if(!c){ return; }
+    const cls = c.close >= c.open ? 'up' : 'down';
+    $('#legend').innerHTML =
+      `<span class="${cls}">開 <b>${fmt(c.open)}</b>　高 <b>${fmt(c.high)}</b>　`+
+      `低 <b>${fmt(c.low)}</b>　收 <b>${fmt(c.close)}</b></span>　量 <b>${fmt(v&&v.value)}</b>`;
+  });
+  window.addEventListener('resize', ()=> chart.applyOptions({width:el.clientWidth, height:el.clientHeight}));
+}
+
+async function loadSymbols(){
+  const list = await (await fetch('/api/symbols')).json();
+  const sel = $('#symbol');
+  sel.innerHTML = '';
+  if(!list.length){
+    $('#hint').textContent = 'data/ 內沒有資料。請先在終端機執行：python download.py';
+    return;
+  }
+  for(const s of list){
+    const o = document.createElement('option');
+    o.value = s.key;
+    o.textContent = `${s.key}  ${s.name}`;
+    o.dataset.meta = `${s.rows} 根K棒 ｜ ${s.start} → ${s.end}${s.note? ' ｜ '+s.note : ''}`;
+    sel.appendChild(o);
+  }
+  sel.onchange = ()=> loadData(sel.value);
+  loadData(list[0].key);
+}
+
+async function loadData(key){
+  current = key;
+  const sel = $('#symbol');
+  const opt = sel.querySelector(`option[value="${key}"]`);
+  $('#meta').textContent = opt ? opt.dataset.meta : '';
+  const d = await (await fetch('/api/data?symbol='+encodeURIComponent(key))).json();
+  if(d.error){ $('#hint').textContent = d.error; return; }
+  candleSeries.setData(d.candles);
+  volSeries.setData(d.volumes);
+  chart.timeScale().fitContent();
+}
+
+initChart();
+loadSymbols();
+</script>
+</body>
+</html>

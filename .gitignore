@@ -1,6 +1,9 @@
 # 回測產出圖（每次執行會重新生成，不入庫）
 tools/*.png
 
+# 下載的市場資料 CSV（可重新下載，不入庫）
+tools/market_data/data/*.csv
+
 # Python
 __pycache__/
 *.pyc
