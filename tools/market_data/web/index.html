@@ -10,32 +10,52 @@
   * { box-sizing: border-box; }
   body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Microsoft JhengHei",sans-serif;
          background:var(--bg); color:var(--fg); }
-  header { display:flex; align-items:center; gap:16px; padding:10px 16px;
-           background:var(--panel); border-bottom:1px solid #2a2e39; flex-wrap:wrap; }
-  header h1 { font-size:15px; margin:0; font-weight:600; }
-  select { background:#2a2e39; color:var(--fg); border:1px solid #363a45;
+  header { background:var(--panel); border-bottom:1px solid #2a2e39; }
+  .bar { display:flex; align-items:center; gap:12px; padding:8px 16px; flex-wrap:wrap; }
+  .bar.sub { border-top:1px solid #232733; background:#191d2a; }
+  h1 { font-size:15px; margin:0; font-weight:600; }
+  label.tag { font-size:12px; color:var(--muted); }
+  select, input, button { background:#2a2e39; color:var(--fg); border:1px solid #363a45;
            border-radius:6px; padding:6px 10px; font-size:14px; }
+  input[type=date]{ color-scheme:dark; }
+  button { cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.5; cursor:default; }
   .meta { color:var(--muted); font-size:12px; }
   .legend { font-size:13px; font-variant-numeric:tabular-nums; }
   .legend b { color:var(--fg); font-weight:600; }
   .up { color:#26a69a; } .down { color:#ef5350; }
-  #chart { width:100vw; height:calc(100vh - 52px); }
-  #hint { padding:20px; color:var(--muted); }
+  #status { font-size:12px; color:var(--muted); min-height:16px; }
+  #status.err { color:#ef5350; } #status.ok { color:#26a69a; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent);
+         margin-right:6px; animation:pulse 1s infinite; vertical-align:middle; }
+  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+  #chart { width:100vw; height:calc(100vh - 92px); }
 </style>
 </head>
 <body>
 <header>
-  <h1>📈 K 線檢視器</h1>
-  <select id="symbol"></select>
-  <span class="meta" id="meta"></span>
-  <span class="legend" id="legend"></span>
+  <div class="bar">
+    <h1>📈 K 線檢視器</h1>
+    <label class="tag">檢視</label>
+    <select id="symbol"></select>
+    <span class="meta" id="meta"></span>
+    <span class="legend" id="legend"></span>
+  </div>
+  <div class="bar sub">
+    <label class="tag">下載 / 更新</label>
+    <select id="dlSymbol"></select>
+    <label class="tag">起始日</label>
+    <input type="date" id="dlStart" value="2015-01-01">
+    <button class="primary" id="dlBtn">下載</button>
+    <span id="status"></span>
+  </div>
 </header>
 <div id="chart"></div>
-<div id="hint"></div>
 
 <script>
 const $ = s => document.querySelector(s);
-let chart, candleSeries, volSeries, current = null;
+let chart, candleSeries, volSeries;
 
 function fmt(n){ return n===undefined||n===null ? '—' : Number(n).toLocaleString('en-US',{maximumFractionDigits:2}); }
 
@@ -52,16 +72,14 @@ function initChart(){
     upColor:'#26a69a', downColor:'#ef5350', borderVisible:false,
     wickUpColor:'#26a69a', wickDownColor:'#ef5350',
   });
-  volSeries = chart.addHistogramSeries({
-    priceFormat:{type:'volume'}, priceScaleId:'vol',
-  });
+  volSeries = chart.addHistogramSeries({ priceFormat:{type:'volume'}, priceScaleId:'vol' });
   chart.priceScale('vol').applyOptions({ scaleMargins:{top:0.82, bottom:0} });
 
   chart.subscribeCrosshairMove(p => {
-    if(!p || !p.time || !p.seriesData){ return; }
+    if(!p || !p.time || !p.seriesData) return;
     const c = p.seriesData.get(candleSeries);
     const v = p.seriesData.get(volSeries);
-    if(!c){ return; }
+    if(!c) return;
     const cls = c.close >= c.open ? 'up' : 'down';
     $('#legend').innerHTML =
       `<span class="${cls}">開 <b>${fmt(c.open)}</b>　高 <b>${fmt(c.high)}</b>　`+
@@ -70,14 +88,12 @@ function initChart(){
   window.addEventListener('resize', ()=> chart.applyOptions({width:el.clientWidth, height:el.clientHeight}));
 }
 
-async function loadSymbols(){
+// ---- 檢視用：已下載商品下拉 ----
+async function refreshSymbols(selectKey){
   const list = await (await fetch('/api/symbols')).json();
   const sel = $('#symbol');
+  const keep = selectKey || sel.value;
   sel.innerHTML = '';
-  if(!list.length){
-    $('#hint').textContent = 'data/ 內沒有資料。請先在終端機執行：python download.py';
-    return;
-  }
   for(const s of list){
     const o = document.createElement('option');
     o.value = s.key;
@@ -86,23 +102,78 @@ async function loadSymbols(){
     sel.appendChild(o);
   }
   sel.onchange = ()=> loadData(sel.value);
-  loadData(list[0].key);
+  if(list.length){
+    sel.value = list.some(s=>s.key===keep) ? keep : list[0].key;
+    loadData(sel.value);
+  }
+  return list;
+}
+
+// ---- 下載用：全部支援商品下拉 ----
+async function loadInstruments(){
+  const list = await (await fetch('/api/instruments')).json();
+  const sel = $('#dlSymbol');
+  sel.innerHTML = '';
+  for(const it of list){
+    const o = document.createElement('option');
+    o.value = it.key;
+    o.textContent = `${it.key}  ${it.name}${it.downloaded? ' ✓':''}`;
+    o.title = it.note || '';
+    sel.appendChild(o);
+  }
 }
 
 async function loadData(key){
-  current = key;
-  const sel = $('#symbol');
-  const opt = sel.querySelector(`option[value="${key}"]`);
+  const opt = $('#symbol').querySelector(`option[value="${key}"]`);
   $('#meta').textContent = opt ? opt.dataset.meta : '';
   const d = await (await fetch('/api/data?symbol='+encodeURIComponent(key))).json();
-  if(d.error){ $('#hint').textContent = d.error; return; }
+  if(d.error){ return; }
   candleSeries.setData(d.candles);
   volSeries.setData(d.volumes);
   chart.timeScale().fitContent();
 }
 
+// ---- 下載流程 ----
+function setStatus(msg, cls){ const s=$('#status'); s.className=cls||''; s.innerHTML=msg; }
+
+async function startDownload(){
+  const key = $('#dlSymbol').value;
+  const start = $('#dlStart').value || '2015-01-01';
+  $('#dlBtn').disabled = true;
+  setStatus(`<span class="dot"></span>送出下載 ${key} ...`);
+  let job;
+  try{
+    const r = await fetch('/api/download', {method:'POST', headers:{'Content-Type':'application/json'},
+                 body: JSON.stringify({symbol:key, start})});
+    job = await r.json();
+    if(job.error){ throw new Error(job.error); }
+  }catch(e){ setStatus('下載啟動失敗：'+e.message,'err'); $('#dlBtn').disabled=false; return; }
+
+  // 輪詢狀態
+  const poll = async ()=>{
+    const st = await (await fetch('/api/download_status?job='+job.job)).json();
+    if(st.state === 'done'){
+      setStatus('✓ '+(st.last||'完成'),'ok');
+      $('#dlBtn').disabled = false;
+      await loadInstruments();
+      await refreshSymbols(job.key);       // 切到剛下載的商品並顯示
+      return;
+    }
+    if(st.state === 'error'){
+      setStatus('✗ 下載失敗：'+(st.last||''),'err');
+      $('#dlBtn').disabled = false;
+      return;
+    }
+    setStatus(`<span class="dot"></span>${job.name} 下載中… ${st.last||''}`);
+    setTimeout(poll, 1000);
+  };
+  setTimeout(poll, 800);
+}
+
 initChart();
-loadSymbols();
+loadInstruments();
+refreshSymbols();
+$('#dlBtn').onclick = startDownload;
 </script>
 </body>
 </html>
