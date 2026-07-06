@@ -18,6 +18,11 @@
 
 ## 進度日誌
 
+### 2026-07-03 ｜ Code ｜ 安全性：清掉 remote URL 內嵌 token ｜ ✅ 完成
+- 舊 remote URL 內嵌了明文 PAT（外洩風險）→ `git remote set-url` 換成乾淨 URL
+- 改用 Git Credential Manager（manager-core）管理憑證，`.git/config` 不再存 token
+- 舊 token 已於 GitHub 撤銷、重發新 token（由 Spike 於網站操作）
+
 ### 2026-07-03 ｜ Code ｜ 推上 GitHub ｜ ✅ 完成
 - commit `25e4315` push 到 `origin/main`（含回測腳本、SOP 更新、PROGRESS.md）
 - 新增 `.gitignore`：回測產出圖 `tools/*.png` 與 `__pycache__` 不入庫
