@@ -25,7 +25,11 @@ import symbols
 from intervals import INTERVALS, ORDER, is_intraday
 from sources import yahoo, taifex, tradingview
 
-DATA_DIR = Path(__file__).parent / 'data'
+if getattr(sys, 'frozen', False):
+    # 打包成 exe 後：data 放在 exe 旁邊（可寫、資料能保存）
+    DATA_DIR = Path(sys.executable).parent / 'data'
+else:
+    DATA_DIR = Path(__file__).parent / 'data'
 
 # tvDatafeed 備援對照（僅在主來源失敗時使用）
 _TV_FALLBACK = {

@@ -51,6 +51,20 @@ python server.py            # 啟動並自動開瀏覽器
 > 台指期分鐘資料免費來源沒有；選台指+分鐘時 UI 會提示「需券商 API（Shioaji）」。
 > 之後若接上 Shioaji，只要在 `sources/` 加一個來源即可，UI/下載流程不用改。
 
+### 打包成執行檔（免裝 Python）
+
+想在沒有 Python 的機器上用、或雙擊就跑，可打包成單一 exe：
+
+```bash
+pip install pyinstaller
+python build_exe.py
+```
+
+產出 `dist/kbar-server.exe`（~85MB）：
+- 雙擊即啟動、自動開瀏覽器；下載的 CSV 存到 **exe 旁邊的 `data/`**（可保存、可帶著走）。
+- 單檔版首次啟動需解壓數秒；exe 內含 pandas/yfinance。
+- 未簽章，Windows SmartScreen 可能跳「不明發行者」→ 點「其他資訊 → 仍要執行」。
+
 ### 或用 CLI 下載（等同網頁的下載鈕）
 
 ```bash
@@ -88,7 +102,8 @@ market_data/
 ├── symbols.py          # 商品註冊表（新增商品在此加一筆）
 ├── intervals.py        # 時間刻度註冊表（日/60/30/15/5/1分）
 ├── download.py         # 下載 CLI（含增量更新 update_one）
-├── server.py            # K 線 UI 本機伺服器 + 資料 API
+├── server.py           # K 線 UI 本機伺服器 + 資料 API
+├── build_exe.py        # 打包成單一 exe（PyInstaller）
 ├── sources/
 │   ├── yahoo.py        # Yahoo Finance 來源
 │   ├── taifex.py       # 台灣期交所官方來源

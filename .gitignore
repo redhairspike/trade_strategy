@@ -4,6 +4,11 @@ tools/*.png
 # 下載的市場資料 CSV（可重新下載，不入庫）
 tools/market_data/data/*.csv
 
+# PyInstaller 打包產物（可重新建置，不入庫）
+tools/market_data/build/
+tools/market_data/dist/
+tools/market_data/*.spec
+
 # Python
 __pycache__/
 *.pyc

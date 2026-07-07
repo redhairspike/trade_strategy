@@ -20,6 +20,7 @@ K 線檢視 UI 的本機伺服器（含線上下載、多時間刻度）
 """
 
 import io
+import sys
 import csv
 import json
 import uuid
@@ -36,9 +37,12 @@ import symbols
 import download as dl
 from intervals import INTERVALS, ORDER, label as iv_label, is_intraday
 
-BASE = Path(__file__).parent
-DATA = BASE / 'data'
-WEB = BASE / 'web'
+# 路徑：打包成 exe 後，web 是包在 exe 內的唯讀資源，data 放 exe 旁邊（可寫）
+if getattr(sys, 'frozen', False):
+    WEB = Path(sys._MEIPASS) / 'web'
+else:
+    WEB = Path(__file__).parent / 'web'
+DATA = dl.DATA_DIR
 
 JOBS: dict[str, dict] = {}
 JOB_LOCK = threading.Lock()

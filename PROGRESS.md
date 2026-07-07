@@ -6,8 +6,8 @@
 ---
 
 ## 目前狀態
-- **最新完成**：CSV 檔名加起訖日期、serve.py 改名 server.py、UI 加舊版伺服器偵測（2026-07-07，Code）
-- **前一步**：回測腳本接分鐘 CSV，MNQ 15分回測 60% 支持假說（2026-07-07，Code）
+- **最新完成**：K 線伺服器打包成單一 exe（PyInstaller，免裝 Python）（2026-07-07，Code）
+- **前一步**：CSV 檔名加起訖日期、serve.py 改名 server.py、UI 加舊版偵測（2026-07-07，Code）
 - **進行中**：無
 - **下一步候選**：
   1. 5m 資料接入（Yahoo 無 5m 歷史，需券商/付費資料或 Tradovate CSV 匯出）在真實時框直接驗證
@@ -17,6 +17,12 @@
 ---
 
 ## 進度日誌
+
+### 2026-07-07 ｜ Code ｜ 打包成 exe ｜ ✅ 完成
+- 新增 `build_exe.py`（PyInstaller，--onefile + 打包 web/ + collect yfinance/curl_cffi）
+- server.py/download.py 加 frozen 判斷：web 讀 exe 內資源、data 放 exe 旁邊（可寫可保存）
+- 產出 `dist/kbar-server.exe`（~85MB）；`.gitignore` 排除 build/ dist/ *.spec
+- **實測**：exe 啟動、serve UI/API、透過 exe 下載 MCL 631 根成功（bundled yfinance/curl_cffi 正常）
 
 ### 2026-07-07 ｜ Code ｜ 檔名加日期 + 改名 server.py + 舊版偵測 ｜ ✅ 完成
 - CSV 檔名改 `<商品>_<刻度>_<起>_<迄>.csv`（如 `MNQ_15m_2026-04-24_2026-07-06.csv`）；
