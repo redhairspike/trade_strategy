@@ -56,8 +56,35 @@ def fetch_one(inst: symbols.Instrument, interval: str, start: str, end: str | No
     raise ValueError(f"未知來源：{inst.source}")
 
 
-def csv_path(key: str, interval: str) -> Path:
-    return DATA_DIR / f"{key}_{interval}.csv"
+# ---- CSV 檔名：<商品>_<刻度>_<起>_<迄>.csv（日期為資料的第一/最後一天）----
+
+def csv_glob(key: str, interval: str):
+    """同商品同刻度的所有檔（含含日期的新命名）。"""
+    return sorted(DATA_DIR.glob(f"{key}_{interval}_*.csv"))
+
+
+def find_csv(key: str, interval: str):
+    """找出該商品該刻度目前的 CSV（優先含日期的新命名，退回舊命名）。找不到回 None。"""
+    m = csv_glob(key, interval)
+    if m:
+        return m[-1]
+    legacy = DATA_DIR / f"{key}_{interval}.csv"
+    return legacy if legacy.exists() else None
+
+
+def save_csv(key, interval, df, tcol):
+    """存成 <商品>_<刻度>_<起>_<迄>.csv，並刪掉同商品同刻度的舊檔（只留一份）。"""
+    start = str(df[tcol].iloc[0])[:10]
+    end = str(df[tcol].iloc[-1])[:10]
+    out = DATA_DIR / f"{key}_{interval}_{start}_{end}.csv"
+    for f in csv_glob(key, interval) + [DATA_DIR / f"{key}_{interval}.csv"]:
+        if f != out and f.exists():
+            try:
+                f.unlink()
+            except OSError:
+                pass
+    df.to_csv(out, index=False, encoding='utf-8')
+    return out, start, end
 
 
 def download_one(key, interval, start, end=None):
@@ -85,21 +112,20 @@ def download_one(key, interval, start, end=None):
         return (0, '', '')
 
     tcol = 'Datetime' if 'Datetime' in df.columns else 'Date'
-    out = csv_path(key, interval)
-    df.to_csv(out, index=False, encoding='utf-8')
+    out, s, e = save_csv(key, interval, df, tcol)
     print(f"    ✓ {len(df)} 根K棒  {df[tcol].iloc[0]} → {df[tcol].iloc[-1]}  → {out.name}")
-    return (len(df), df[tcol].iloc[0], df[tcol].iloc[-1])
+    return (len(df), str(df[tcol].iloc[0]), str(df[tcol].iloc[-1]))
 
 
 def update_one(key, interval):
-    """增量更新：只抓最近的資料，與現有 CSV 合併（保留歷史、不重複）。"""
+    """增量更新：只抓最近的資料，與現有 CSV 合併（保留歷史、不重複），存成新的起訖檔名。"""
     DATA_DIR.mkdir(exist_ok=True)
     inst = symbols.REGISTRY[key]
     tcol = 'Datetime' if is_intraday(interval) else 'Date'
-    path = csv_path(key, interval)
+    path = find_csv(key, interval)
 
     old = None
-    if path.exists():
+    if path is not None and path.exists():
         try:
             old = pd.read_csv(path)
         except Exception:
@@ -120,10 +146,10 @@ def update_one(key, interval):
 
     combined = new if old is None else pd.concat([old, new], ignore_index=True)
     combined = combined.drop_duplicates(subset=[tcol], keep='last').sort_values(tcol)
-    combined.to_csv(path, index=False, encoding='utf-8')
-    n, s, e = _meta(combined, tcol)
-    print(f"    ✓ {n} 根K棒（{s} → {e}）→ {path.name}")
-    return n, s, e
+    out, s, e = save_csv(key, interval, combined, tcol)
+    n = len(combined)
+    print(f"    ✓ {n} 根K棒（{s} → {e}）→ {out.name}")
+    return n, str(combined[tcol].iloc[0]), str(combined[tcol].iloc[-1])
 
 
 def _meta(df, tcol):
@@ -147,7 +173,7 @@ def download(keys, interval, start, end):
     for key, n, s, e in summary:
         print(f"  {key:<6}{n:>8}   {s:<20}{e:<20}")
     print(f"\n  CSV 存於：{DATA_DIR}")
-    print("  用 `python serve.py` 開啟 K 線 UI 檢視。")
+    print("  用 `python server.py` 開啟 K 線 UI 檢視。")
 
 
 def main():

@@ -5,8 +5,8 @@ K 線檢視 UI 的本機伺服器（含線上下載、多時間刻度）
 並可直接在網頁上下載（日/60/30/15/5/1分），下載完即時顯示。
 
 用法：
-    python serve.py            # 啟動並自動開瀏覽器
-    python serve.py --port 8800 --no-open
+    python server.py            # 啟動並自動開瀏覽器
+    python server.py --port 8800 --no-open
 
 端點：
     GET  /                              → K 線頁面
@@ -109,11 +109,15 @@ def _run_update_all(job):
 # =========================================================
 
 def _parse_name(stem):
-    """'MNQ_15m' -> ('MNQ','15m')；未知刻度則整串當 key、刻度 1d。"""
-    if '_' in stem:
-        k, iv = stem.rsplit('_', 1)
-        if iv in INTERVALS:
-            return k, iv
+    """
+    解析檔名 → (key, interval)。支援：
+      MNQ_15m_2026-04-24_2026-07-06 → ('MNQ','15m')
+      MNQ_1d                        → ('MNQ','1d')   （舊命名）
+    """
+    parts = stem.split('_')
+    for i, p in enumerate(parts):
+        if p in INTERVALS:
+            return ('_'.join(parts[:i]) or stem, p)
     return stem, '1d'
 
 
@@ -174,8 +178,8 @@ def _epoch(s):
 
 
 def load_data(key, interval):
-    f = dl.csv_path(key, interval)
-    if not f.exists():
+    f = dl.find_csv(key, interval)
+    if f is None or not f.exists():
         return None
     intraday = is_intraday(interval)
     candles, volumes = [], []

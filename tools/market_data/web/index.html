@@ -219,11 +219,37 @@ async function updateAll(){
   });
 }
 
-initChart();
-loadDownloadControls();
-refreshSymbols();
-$('#dlBtn').onclick = startDownload;
-$('#updBtn').onclick = updateAll;
+// ---- 啟動前先確認後端是最新版（避免舊 server.py 造成空白/報錯）----
+async function checkServer(){
+  try{
+    const r = await fetch('/api/intervals');
+    const j = await r.json();
+    if(!Array.isArray(j)) throw new Error('shape');
+    return true;
+  }catch(e){
+    document.body.innerHTML =
+      '<div style="max-width:640px;margin:12vh auto;padding:28px;border:1px solid #ef5350;'+
+      'border-radius:10px;background:#241a1d;color:#f0d0d0;line-height:1.7">'+
+      '<div style="font-size:18px;color:#ef5350;font-weight:700;margin-bottom:10px">⚠ 後端是舊版或未回應</div>'+
+      '這個網頁是新版，但正在服務它的 <b>server.py</b> 是舊版程式（或沒啟動）。<br>'+
+      '請到終端機把它 <b>Ctrl+C 關掉</b>，重新執行：<br>'+
+      '<code style="display:inline-block;margin:8px 0;padding:6px 10px;background:#000;border-radius:6px">'+
+      'cd tools/market_data &amp;&amp; python server.py</code><br>'+
+      '然後回來按 <b>Ctrl + Shift + R</b> 強制重新整理。'+
+      '</div>';
+    return false;
+  }
+}
+
+async function boot(){
+  if(!(await checkServer())) return;
+  initChart();
+  await loadDownloadControls();
+  await refreshSymbols();
+  $('#dlBtn').onclick = startDownload;
+  $('#updBtn').onclick = updateAll;
+}
+boot();
 </script>
 </body>
 </html>

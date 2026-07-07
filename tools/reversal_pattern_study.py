@@ -839,11 +839,14 @@ def main():
 
     if args.local or args.csv:
         if args.local:
-            path = Path(__file__).parent / 'market_data' / 'data' / f'{args.local}_{args.interval}.csv'
+            data_dir = Path(__file__).parent / 'market_data' / 'data'
+            # 檔名含起訖日期：<商品>_<刻度>_<起>_<迄>.csv；退回舊命名
+            matches = sorted(data_dir.glob(f'{args.local}_{args.interval}_*.csv'))
+            path = matches[-1] if matches else data_dir / f'{args.local}_{args.interval}.csv'
             label = args.label or args.local
         else:
             path = Path(args.csv)
-            label = args.label or path.stem.rsplit('_', 1)[0]
+            label = args.label or path.stem.split('_')[0]
         run_local(path, label, args.interval)
         return
 

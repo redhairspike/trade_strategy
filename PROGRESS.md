@@ -6,8 +6,8 @@
 ---
 
 ## 目前狀態
-- **最新完成**：回測腳本接分鐘 CSV，MNQ 15分回測 60% 支持「等W底第二低」假說（2026-07-07，Code）
-- **前一步**：多時間刻度下載+顯示 + 更新全部（2026-07-07，Code）
+- **最新完成**：CSV 檔名加起訖日期、serve.py 改名 server.py、UI 加舊版伺服器偵測（2026-07-07，Code）
+- **前一步**：回測腳本接分鐘 CSV，MNQ 15分回測 60% 支持假說（2026-07-07，Code）
 - **進行中**：無
 - **下一步候選**：
   1. 5m 資料接入（Yahoo 無 5m 歷史，需券商/付費資料或 Tradovate CSV 匯出）在真實時框直接驗證
@@ -17,6 +17,15 @@
 ---
 
 ## 進度日誌
+
+### 2026-07-07 ｜ Code ｜ 檔名加日期 + 改名 server.py + 舊版偵測 ｜ ✅ 完成
+- CSV 檔名改 `<商品>_<刻度>_<起>_<迄>.csv`（如 `MNQ_15m_2026-04-24_2026-07-06.csv`）；
+  download.py 加 save_csv/find_csv/csv_glob，每商品每刻度只留一份（更新自動刪舊檔）
+- server.py/reversal 改用 glob 找檔，相容舊命名（fallback）
+- `serve.py` → 改名 `server.py`（含 README、launch.json、啟動提示）
+- **UI 加舊版伺服器偵測**：載入時檢查 /api/intervals，若後端是舊版就顯示明確提示要重啟，
+  不再給空白下拉+`Unexpected token '<'`（這次卡住的根因是殘留舊 serve.py 行程）
+- 實測：CLI/UI 下載都產生日期檔名、舊檔自動清除、回測與圖表都正確讀到
 
 ### 2026-07-07 ｜ Code ｜ 回測接分鐘 CSV ｜ ✅ 完成
 - `reversal_pattern_study.py` 加 `--interval`（1d/60m/30m/15m/5m/1m），load_csv 支援 Datetime 欄位

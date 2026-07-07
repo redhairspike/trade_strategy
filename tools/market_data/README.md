@@ -29,7 +29,7 @@ pip install tvDatafeed        # 需設環境變數 TV_USERNAME / TV_PASSWORD
 ### 最簡單：全部在網頁上做（推薦）
 
 ```bash
-python serve.py            # 啟動並自動開瀏覽器
+python server.py            # 啟動並自動開瀏覽器
 ```
 
 網頁上就能：
@@ -61,7 +61,9 @@ python download.py MNQ --start 2015-01-01     # 日K 起始日
 python download.py --list                     # 列出可用商品與刻度
 ```
 
-輸出：`data/<KEY>_<刻度>.csv`。
+輸出：`data/<KEY>_<刻度>_<起>_<迄>.csv`（起訖為資料第一/最後一天），
+例如 `MNQ_15m_2026-04-24_2026-07-06.csv`、`TX_1d_2010-01-04_2026-07-06.csv`。
+每個商品每種刻度只保留一份（更新時舊檔自動移除）。
 日K 欄位 `Date,Open,High,Low,Close,Volume`；分鐘K 首欄為 `Datetime`（交易所當地時間）。
 
 - 美股（Yahoo）：一次下載完整歷史。
@@ -72,8 +74,8 @@ python download.py --list                     # 列出可用商品與刻度
 ### 2) 開啟 K 線 UI
 
 ```bash
-python serve.py            # 啟動並自動開瀏覽器（預設 http://127.0.0.1:8765）
-python serve.py --port 8800 --no-open
+python server.py            # 啟動並自動開瀏覽器（預設 http://127.0.0.1:8765）
+python server.py --port 8800 --no-open
 ```
 
 - 上方下拉選單切換商品；十字游標顯示 開/高/低/收/量。
@@ -86,7 +88,7 @@ market_data/
 ├── symbols.py          # 商品註冊表（新增商品在此加一筆）
 ├── intervals.py        # 時間刻度註冊表（日/60/30/15/5/1分）
 ├── download.py         # 下載 CLI（含增量更新 update_one）
-├── serve.py            # K 線 UI 本機伺服器 + 資料 API
+├── server.py            # K 線 UI 本機伺服器 + 資料 API
 ├── sources/
 │   ├── yahoo.py        # Yahoo Finance 來源
 │   ├── taifex.py       # 台灣期交所官方來源
@@ -97,5 +99,12 @@ market_data/
 
 ## 給回測用
 
-`data/<KEY>_1d.csv` 是標準 OHLCV，可直接餵給 `../reversal_pattern_study.py`
-之類的回測腳本（例如改讀本地 CSV 而非 Yahoo，就能離線、可重現地回測台指）。
+`data/` 內的 CSV 是標準 OHLCV，回測腳本可直接讀：
+
+```bash
+cd ..
+python reversal_pattern_study.py --local MNQ --interval 15m
+python reversal_pattern_study.py --local TX  --interval 1d
+```
+
+（腳本會依 `<商品>_<刻度>_*.csv` 自動找檔，離線、可重現地回測。）
