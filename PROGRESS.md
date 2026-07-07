@@ -6,8 +6,8 @@
 ---
 
 ## 目前狀態
-- **最新完成**：K 線 Web UI 整合線上下載（網頁按鈕即可下載並顯示，免開終端機）（2026-07-06，Code）
-- **前一步**：回測腳本接上本地 CSV，大台 16 年日線回測完成（2026-07-06，Code）
+- **最新完成**：多時間刻度（日/60/30/15/5/1分）下載+顯示 + 「更新全部」增量更新（2026-07-07，Code）
+- **前一步**：K 線 Web UI 整合線上下載（2026-07-06，Code）
 - **進行中**：無
 - **下一步候選**：
   1. 5m 資料接入（Yahoo 無 5m 歷史，需券商/付費資料或 Tradovate CSV 匯出）在真實時框直接驗證
@@ -17,6 +17,15 @@
 ---
 
 ## 進度日誌
+
+### 2026-07-07 ｜ Code ｜ 多時間刻度 + 更新全部 ｜ ✅ 完成
+- 新增 `intervals.py`：支援 日/60/30/15/5/1分
+- Yahoo 來源擴充分鐘K（美股）；分鐘 CSV 首欄 Datetime（交易所當地時間）
+- CSV 命名改 `<KEY>_<刻度>.csv`；download.py 加 `--interval` 與增量更新 `update_one`
+- serve.py：/api/data 帶 interval、/api/intervals、/api/update_all；分鐘時間轉 epoch 供圖表顯示盤中時間
+- UI：檢視加「時間刻度分段鈕」（依該商品已下載刻度）、下載列加刻度選單、加「↻ 更新全部」鈕
+- 台指+分鐘會提示「需券商 API（Shioaji）」；架構已預留，之後接 Shioaji 只加一個 source
+- **實測（preview）**：MNQ 15m/60m 下載並顯示（時間軸正確）、TAIFEX 分鐘正確擋下、更新全部 7/7 增量成功且大台 4044 根歷史零重複
 
 ### 2026-07-06 ｜ Code ｜ K 線 Web UI 整合線上下載 ｜ ✅ 完成
 - `serve.py` 加下載端點：POST /api/download（背景執行緒）+ GET /api/download_status（輪詢進度）+ /api/instruments

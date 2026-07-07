@@ -33,21 +33,36 @@ python serve.py            # 啟動並自動開瀏覽器
 ```
 
 網頁上就能：
-- **下載 / 更新**：選商品 + 起始日 → 按「下載」，後端即時下載，完成後自動顯示該商品 K 線。
-- **檢視**：上方「檢視」下拉切換已下載商品；十字游標顯示 開/高/低/收/量。
+- **下載**：選商品 + **時間刻度（日/60/30/15/5/1分）** + 起始日 → 按「下載」，完成後自動顯示。
+- **更新全部**：一鍵把所有已下載的 (商品×刻度) 增量更新到最新（只抓最近、與現有合併，不重抓整段歷史）。
+- **檢視**：上方切換商品；商品旁的分段鈕切換該商品「已下載的時間刻度」；十字游標顯示 開/高/低/收/量。
 
-不用再開終端機跑下載指令。長歷史（如大台 20+ 年）下載時網頁會顯示進度，下載在背景執行不卡頁面。
+不用再開終端機。長下載走背景不卡頁面，網頁顯示進度。
+
+### 時間刻度與歷史限制
+
+| 刻度 | 美股(Yahoo) 可回溯 | 台指(TAIFEX) |
+|------|-------------------|-------------|
+| 日 (1d)   | 完整 | 完整（大台 1998、小台 2001 起）|
+| 60分 (60m)| ~730 天 | ❌ 需券商 API |
+| 30/15/5分 | ~60 天  | ❌ 需券商 API |
+| 1分 (1m)  | ~7 天   | ❌ 需券商 API |
+
+> 台指期分鐘資料免費來源沒有；選台指+分鐘時 UI 會提示「需券商 API（Shioaji）」。
+> 之後若接上 Shioaji，只要在 `sources/` 加一個來源即可，UI/下載流程不用改。
 
 ### 或用 CLI 下載（等同網頁的下載鈕）
 
 ```bash
-python download.py                     # 全部商品
-python download.py MNQ 大台 小台          # 指定（可用中英別名）
-python download.py MNQ --start 2015-01-01
-python download.py --list              # 列出可用商品
+python download.py                            # 全部商品，日K
+python download.py MNQ 大台 小台                 # 指定（可用中英別名）
+python download.py MNQ --interval 15m         # 指定時間刻度（1d/60m/30m/15m/5m/1m）
+python download.py MNQ --start 2015-01-01     # 日K 起始日
+python download.py --list                     # 列出可用商品與刻度
 ```
 
-輸出：`data/<KEY>_1d.csv`，欄位 `Date,Open,High,Low,Close,Volume`。
+輸出：`data/<KEY>_<刻度>.csv`。
+日K 欄位 `Date,Open,High,Low,Close,Volume`；分鐘K 首欄為 `Datetime`（交易所當地時間）。
 
 - 美股（Yahoo）：一次下載完整歷史。
 - 台指（TAIFEX）：因官方單次查詢上限 1 個月，程式**自動逐月分段**下載，
@@ -69,7 +84,8 @@ python serve.py --port 8800 --no-open
 ```
 market_data/
 ├── symbols.py          # 商品註冊表（新增商品在此加一筆）
-├── download.py         # 下載 CLI
+├── intervals.py        # 時間刻度註冊表（日/60/30/15/5/1分）
+├── download.py         # 下載 CLI（含增量更新 update_one）
 ├── serve.py            # K 線 UI 本機伺服器 + 資料 API
 ├── sources/
 │   ├── yahoo.py        # Yahoo Finance 來源
