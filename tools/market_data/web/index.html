@@ -180,7 +180,7 @@ function redrawPen(){
   if(!penCtx) return;
   const c = penCtx.canvas;
   penCtx.clearRect(0, 0, c.clientWidth, c.clientHeight);
-  penCtx.strokeStyle = '#4fc3f7'; penCtx.lineWidth = 2;
+  penCtx.strokeStyle = '#ffeb3b'; penCtx.lineWidth = 2;
   penCtx.lineJoin = 'round'; penCtx.lineCap = 'round';
   const all = curStroke ? penStrokes.concat([curStroke]) : penStrokes;
   for(const stroke of all){
