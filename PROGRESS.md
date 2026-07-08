@@ -6,8 +6,10 @@
 ---
 
 ## 目前狀態
-- **最新完成**：K 線 UI 新增畫水平線功能（支撐/壓力線，依商品保存）（2026-07-07，Code）
-- **前一步**：K 線伺服器打包成單一 exe（PyInstaller）（2026-07-07，Code）
+- **最新完成**：K 線 UI 新增畫筆（自由手繪型態）+ chart autoSize（2026-07-08，Code）
+- **前一步**：K 線 UI 新增畫水平線功能（2026-07-07，Code）
+- **待確認**：畫筆的「實際手繪畫面」尚未經 preview 視覺驗證（preview 分頁被隱藏、不重繪，
+  程式本身載入無誤、canvas/handler/資料都正常）；請 Spike 重整實測，有問題回報
 - **進行中**：無
 - **下一步候選**：
   1. 5m 資料接入（Yahoo 無 5m 歷史，需券商/付費資料或 Tradovate CSV 匯出）在真實時框直接驗證
@@ -17,6 +19,15 @@
 ---
 
 ## 進度日誌
+
+### 2026-07-08 ｜ Code ｜ 畫筆（自由手繪型態）｜ ⚠️ 完成待實測
+- 圖上疊一層 canvas，畫筆自由手繪；每筆存 K 棒座標 [logical, price]，
+  用 coordinateToLogical/logicalToCoordinate + coordinate/priceToCoordinate 換算，跟著縮放平移
+- 按鈕：✏ 畫筆（與水平線互斥）、⟲ 復原、清除（清水平線＋手繪）；依商品存 localStorage
+- 修：canvas 需 width/height:100%（replaced element，inset:0 不撐開）；chart 改 autoSize
+- 已驗證：載入無 JS 錯誤、按鈕/函式齊全、canvas 正確填滿、pointerdown 進得去、資料 631 根
+- **未驗證**：實際手繪畫面——preview 分頁被隱藏(document.hidden)、圖表不重繪，
+  coordinateToPrice 回 null，無法截圖。座標 API 與已驗證的水平線同一套，理應可用。請實測。
 
 ### 2026-07-07 ｜ Code ｜ 畫水平線功能 ｜ ✅ 完成
 - web/index.html 用 Lightweight Charts createPriceLine 實作：按鈕切換畫線模式，

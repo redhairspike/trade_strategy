@@ -35,7 +35,10 @@
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent);
          margin-right:6px; animation:pulse 1s infinite; vertical-align:middle; }
   @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
-  #chart { width:100vw; height:calc(100vh - 96px); }
+  #chartWrap { position:relative; width:100vw; height:calc(100vh - 96px); }
+  #chart { width:100%; height:100%; }
+  #pen { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+  #pen.active { pointer-events:auto; cursor:crosshair; }
 </style>
 </head>
 <body>
@@ -46,7 +49,9 @@
     <select id="symbol"></select>
     <span class="seg" id="viewIv"></span>
     <button class="ghost" id="hlBtn" title="畫水平線：開啟後點圖表新增一條線；點在既有線上則刪除">▬ 水平線</button>
-    <button class="ghost" id="hlClear" title="清除此商品的所有水平線">清除</button>
+    <button class="ghost" id="penBtn" title="畫筆：開啟後在圖上自由手繪（標 W 底、破底翻、頭肩頂等型態）">✏ 畫筆</button>
+    <button class="ghost" id="undoBtn" title="復原上一筆手繪">⟲ 復原</button>
+    <button class="ghost" id="hlClear" title="清除此商品的所有畫線（水平線＋手繪）">清除</button>
     <span class="meta" id="meta"></span>
     <span class="legend" id="legend"></span>
   </div>
@@ -61,7 +66,10 @@
     <span id="status"></span>
   </div>
 </header>
-<div id="chart"></div>
+<div id="chartWrap">
+  <div id="chart"></div>
+  <canvas id="pen"></canvas>
+</div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -70,12 +78,17 @@ let SYMBOLS = [];                      // 已下載商品（含各刻度）
 let cur = { key:null, interval:null };
 let drawMode = false;                  // 水平線畫線模式
 let hlines = [];                       // 目前商品的水平線 [{price, line}]
+let penMode = false;                   // 畫筆模式
+let penStrokes = [];                   // 目前商品的手繪：每筆 = [[logical,price],...]
+let curStroke = null;                  // 正在畫的那一筆
+let penCtx = null;                     // 疊層 canvas 2d context
 
 function fmt(n){ return n===undefined||n===null ? '—' : Number(n).toLocaleString('en-US',{maximumFractionDigits:2}); }
 
 function initChart(){
   const el = $('#chart');
   chart = LightweightCharts.createChart(el, {
+    autoSize: true,   // 依容器大小自動調整（用 ResizeObserver，避免初始 0 尺寸）
     layout:{ background:{color:'#131722'}, textColor:'#d1d4dc' },
     grid:{ vertLines:{color:'#1e222d'}, horzLines:{color:'#1e222d'} },
     rightPriceScale:{ borderColor:'#2a2e39' },
@@ -99,7 +112,7 @@ function initChart(){
       `<span class="${cls}">開 <b>${fmt(c.open)}</b>　高 <b>${fmt(c.high)}</b>　`+
       `低 <b>${fmt(c.low)}</b>　收 <b>${fmt(c.close)}</b></span>　量 <b>${fmt(v&&v.value)}</b>`;
   });
-  window.addEventListener('resize', ()=> chart.applyOptions({width:el.clientWidth, height:el.clientHeight}));
+  window.addEventListener('resize', ()=>{ sizePen(); redrawPen(); });  // 圖表由 autoSize 處理，這裡只顧疊層
 
   // 畫線模式：點圖表新增水平線；點在既有線上（±6px）則刪除
   chart.subscribeClick(param => {
@@ -115,6 +128,11 @@ function initChart(){
     const price = candleSeries.coordinateToPrice(clickY);
     if(price!=null){ addLine(price); saveLines(); }
   });
+
+  // 手繪會跟著 K 棒縮放/平移 → 每次可視範圍變動就重繪
+  chart.timeScale().subscribeVisibleLogicalRangeChange(redrawPen);
+  chart.subscribeCrosshairMove(redrawPen);
+  setupPen();
 }
 
 // ---- 水平線：存在瀏覽器 localStorage，依商品保存 ----
@@ -132,7 +150,86 @@ function addLine(price, save){
 }
 function clearLineObjs(){ hlines.forEach(h=> candleSeries.removePriceLine(h.line)); hlines=[]; }
 function renderStoredLines(){ clearLineObjs(); loadLinePrices(cur.key).forEach(p=> addLine(p)); }
-function clearLines(){ clearLineObjs(); saveLines(); }
+function clearLines(){ clearLineObjs(); saveLines(); penStrokes=[]; savePen(); redrawPen(); }
+
+// ---- 畫筆（自由手繪，存 K 棒座標 [logical, price]，跟著縮放平移）----
+let _lastXY = null;
+
+function sizePen(){
+  const c = document.getElementById('pen');
+  const W = c.clientWidth, H = c.clientHeight;   // 顯示尺寸由 CSS inset:0 決定
+  if(!W || !H) return;                            // 尚未完成布局，等 ResizeObserver 再叫
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(W*dpr); c.height = Math.round(H*dpr);
+  penCtx = c.getContext('2d');
+  penCtx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function screenToData(x,y){
+  const l = chart.timeScale().coordinateToLogical(x);
+  const p = candleSeries.coordinateToPrice(y);
+  return (l==null||p==null) ? null : [l, p];
+}
+function dataToScreen(pt){
+  const x = chart.timeScale().logicalToCoordinate(pt[0]);
+  const y = candleSeries.priceToCoordinate(pt[1]);
+  return (x==null||y==null) ? null : [x, y];
+}
+
+function redrawPen(){
+  if(!penCtx) return;
+  const c = penCtx.canvas;
+  penCtx.clearRect(0, 0, c.clientWidth, c.clientHeight);
+  penCtx.strokeStyle = '#4fc3f7'; penCtx.lineWidth = 2;
+  penCtx.lineJoin = 'round'; penCtx.lineCap = 'round';
+  const all = curStroke ? penStrokes.concat([curStroke]) : penStrokes;
+  for(const stroke of all){
+    penCtx.beginPath(); let started = false;
+    for(const pt of stroke){
+      const sc = dataToScreen(pt);
+      if(!sc){ started = false; continue; }
+      if(!started){ penCtx.moveTo(sc[0], sc[1]); started = true; }
+      else penCtx.lineTo(sc[0], sc[1]);
+    }
+    penCtx.stroke();
+  }
+}
+
+function setupPen(){
+  const c = document.getElementById('pen');
+  // 布局完成/尺寸變動時才調整 canvas 解析度並重繪（解決初始 0×0 問題）
+  new ResizeObserver(()=>{ sizePen(); redrawPen(); }).observe(document.getElementById('chartWrap'));
+  const xy = e => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  c.addEventListener('pointerdown', e => {
+    if(!penMode || !cur.key) return;
+    try{ c.setPointerCapture(e.pointerId); }catch(_){}
+    const [x,y] = xy(e); const d = screenToData(x,y);
+    curStroke = d ? [d] : []; _lastXY = [x,y];
+    e.preventDefault();
+  });
+  c.addEventListener('pointermove', e => {
+    if(!penMode || !curStroke) return;
+    const [x,y] = xy(e);
+    if(_lastXY && Math.hypot(x-_lastXY[0], y-_lastXY[1]) < 2.5) return;  // 節流
+    const d = screenToData(x,y);
+    if(d){ curStroke.push(d); _lastXY = [x,y]; redrawPen(); }
+  });
+  const finish = () => {
+    if(!curStroke) return;
+    if(curStroke.length >= 2) { penStrokes.push(curStroke); savePen(); }
+    curStroke = null; _lastXY = null; redrawPen();
+  };
+  c.addEventListener('pointerup', finish);
+  c.addEventListener('pointercancel', finish);
+  c.addEventListener('pointerleave', finish);
+}
+
+function penKey(){ return 'pen_' + cur.key; }
+function savePen(){ try{ localStorage.setItem(penKey(),
+  JSON.stringify(penStrokes.map(s => s.map(pt => [+pt[0].toFixed(3), +pt[1].toFixed(4)])))); }catch(e){} }
+function loadPen(key){ try{ return JSON.parse(localStorage.getItem('pen_'+key) || '[]'); }catch(e){ return []; } }
+function renderPen(){ penStrokes = loadPen(cur.key); redrawPen(); }
+function undoPen(){ penStrokes.pop(); savePen(); redrawPen(); }
 
 // ---- 檢視：商品下拉 + 刻度分段 ----
 function buildViewIntervals(sym){
@@ -183,6 +280,7 @@ async function loadData(key, interval){
   volSeries.setData(d.volumes);
   chart.timeScale().fitContent();
   renderStoredLines();          // 載入此商品先前畫的水平線
+  renderPen();                  // 載入此商品先前的手繪
 }
 
 // ---- 下載列 ----
@@ -286,8 +384,15 @@ async function boot(){
   await refreshSymbols();
   $('#dlBtn').onclick = startDownload;
   $('#updBtn').onclick = updateAll;
-  $('#hlBtn').onclick = ()=>{ drawMode=!drawMode; $('#hlBtn').classList.toggle('on', drawMode);
-    $('#chart').style.cursor = drawMode ? 'crosshair' : 'default'; };
+
+  function setHlMode(on){ drawMode = on; $('#hlBtn').classList.toggle('on', on);
+    $('#chart').style.cursor = on ? 'crosshair' : 'default'; }
+  function setPenMode(on){ penMode = on; $('#penBtn').classList.toggle('on', on);
+    $('#pen').classList.toggle('active', on); }   // active 時 canvas 接收滑鼠、圖表不被平移
+
+  $('#hlBtn').onclick = ()=>{ const on=!drawMode; if(on) setPenMode(false); setHlMode(on); };
+  $('#penBtn').onclick = ()=>{ const on=!penMode; if(on) setHlMode(false); setPenMode(on); };
+  $('#undoBtn').onclick = undoPen;
   $('#hlClear').onclick = clearLines;
 }
 boot();
