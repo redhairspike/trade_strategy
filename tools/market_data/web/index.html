@@ -21,6 +21,7 @@
   button { cursor:pointer; }
   button.primary { background:var(--accent); border-color:var(--accent); font-weight:600; }
   button.ghost { background:transparent; }
+  button.ghost.on { background:var(--accent); border-color:var(--accent); color:#fff; }
   button:disabled { opacity:.5; cursor:default; }
   .seg { display:inline-flex; border:1px solid #363a45; border-radius:6px; overflow:hidden; }
   .seg button { border:0; border-radius:0; background:#2a2e39; padding:6px 11px; }
@@ -44,6 +45,8 @@
     <label class="tag">檢視</label>
     <select id="symbol"></select>
     <span class="seg" id="viewIv"></span>
+    <button class="ghost" id="hlBtn" title="畫水平線：開啟後點圖表新增一條線；點在既有線上則刪除">▬ 水平線</button>
+    <button class="ghost" id="hlClear" title="清除此商品的所有水平線">清除</button>
     <span class="meta" id="meta"></span>
     <span class="legend" id="legend"></span>
   </div>
@@ -65,6 +68,8 @@ const $ = s => document.querySelector(s);
 let chart, candleSeries, volSeries;
 let SYMBOLS = [];                      // 已下載商品（含各刻度）
 let cur = { key:null, interval:null };
+let drawMode = false;                  // 水平線畫線模式
+let hlines = [];                       // 目前商品的水平線 [{price, line}]
 
 function fmt(n){ return n===undefined||n===null ? '—' : Number(n).toLocaleString('en-US',{maximumFractionDigits:2}); }
 
@@ -95,7 +100,39 @@ function initChart(){
       `低 <b>${fmt(c.low)}</b>　收 <b>${fmt(c.close)}</b></span>　量 <b>${fmt(v&&v.value)}</b>`;
   });
   window.addEventListener('resize', ()=> chart.applyOptions({width:el.clientWidth, height:el.clientHeight}));
+
+  // 畫線模式：點圖表新增水平線；點在既有線上（±6px）則刪除
+  chart.subscribeClick(param => {
+    if(!drawMode || !param.point || !cur.key) return;
+    const clickY = param.point.y;
+    for(let i=0;i<hlines.length;i++){
+      const ly = candleSeries.priceToCoordinate(hlines[i].price);
+      if(ly!=null && Math.abs(ly - clickY) <= 6){
+        candleSeries.removePriceLine(hlines[i].line);
+        hlines.splice(i,1); saveLines(); return;
+      }
+    }
+    const price = candleSeries.coordinateToPrice(clickY);
+    if(price!=null){ addLine(price); saveLines(); }
+  });
 }
+
+// ---- 水平線：存在瀏覽器 localStorage，依商品保存 ----
+function lsKey(){ return 'hlines_' + cur.key; }
+function saveLines(){ try{ localStorage.setItem(lsKey(), JSON.stringify(hlines.map(h=>h.price))); }catch(e){} }
+function loadLinePrices(key){ try{ return JSON.parse(localStorage.getItem('hlines_'+key) || '[]'); }catch(e){ return []; } }
+
+function addLine(price, save){
+  const line = candleSeries.createPriceLine({
+    price, color:'#f7b500', lineWidth:1,
+    lineStyle: LightweightCharts.LineStyle.Dashed,
+    axisLabelVisible:true, title:'',
+  });
+  hlines.push({ price, line });
+}
+function clearLineObjs(){ hlines.forEach(h=> candleSeries.removePriceLine(h.line)); hlines=[]; }
+function renderStoredLines(){ clearLineObjs(); loadLinePrices(cur.key).forEach(p=> addLine(p)); }
+function clearLines(){ clearLineObjs(); saveLines(); }
 
 // ---- 檢視：商品下拉 + 刻度分段 ----
 function buildViewIntervals(sym){
@@ -145,6 +182,7 @@ async function loadData(key, interval){
   candleSeries.setData(d.candles);
   volSeries.setData(d.volumes);
   chart.timeScale().fitContent();
+  renderStoredLines();          // 載入此商品先前畫的水平線
 }
 
 // ---- 下載列 ----
@@ -248,6 +286,9 @@ async function boot(){
   await refreshSymbols();
   $('#dlBtn').onclick = startDownload;
   $('#updBtn').onclick = updateAll;
+  $('#hlBtn').onclick = ()=>{ drawMode=!drawMode; $('#hlBtn').classList.toggle('on', drawMode);
+    $('#chart').style.cursor = drawMode ? 'crosshair' : 'default'; };
+  $('#hlClear').onclick = clearLines;
 }
 boot();
 </script>

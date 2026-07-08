@@ -6,8 +6,8 @@
 ---
 
 ## 目前狀態
-- **最新完成**：K 線伺服器打包成單一 exe（PyInstaller，免裝 Python）（2026-07-07，Code）
-- **前一步**：CSV 檔名加起訖日期、serve.py 改名 server.py、UI 加舊版偵測（2026-07-07，Code）
+- **最新完成**：K 線 UI 新增畫水平線功能（支撐/壓力線，依商品保存）（2026-07-07，Code）
+- **前一步**：K 線伺服器打包成單一 exe（PyInstaller）（2026-07-07，Code）
 - **進行中**：無
 - **下一步候選**：
   1. 5m 資料接入（Yahoo 無 5m 歷史，需券商/付費資料或 Tradovate CSV 匯出）在真實時框直接驗證
@@ -17,6 +17,13 @@
 ---
 
 ## 進度日誌
+
+### 2026-07-07 ｜ Code ｜ 畫水平線功能 ｜ ✅ 完成
+- web/index.html 用 Lightweight Charts createPriceLine 實作：按鈕切換畫線模式，
+  點圖表新增水平線（虛線+價格標籤）、點既有線刪除、「清除」清空
+- 線依商品存 localStorage，換時框/重整/重開都保留（loadData 時 renderStoredLines 還原）
+- preview 實測：新增/持久化/點擊刪除 皆通過，無 console 錯誤
+- 因 UI 改動，重新 build exe（web 打包在內）
 
 ### 2026-07-07 ｜ Code ｜ 打包成 exe ｜ ✅ 完成
 - 新增 `build_exe.py`（PyInstaller，--onefile + 打包 web/ + collect yfinance/curl_cffi）
