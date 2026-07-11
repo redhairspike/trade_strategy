@@ -7,8 +7,7 @@
 
 ## 目前狀態
 - **最新完成**：7/10 盤後檢討 + 日內虧損控制規則新增（2026-07-11，Cowork）
-- **Code 最新**：K 線 UI 新增畫筆（自由手繪型態）+ chart autoSize（2026-07-08，Code）
-- **待確認（Code）**：畫筆實際手繪畫面尚未視覺驗證，請 Spike 實測
+- **Code 最新**：K 線 UI 畫筆（自由手繪型態，黃色）已 Spike 實測確認 OK（2026-07-11）
 - **進行中**：無
 - **下一步候選**：
   1. 開盤前檢查清單 Word 文件 → 更新加入所有新規則（開盤價撐壓、W底試單、有子彈彈性、日內虧損控制）
@@ -19,14 +18,15 @@
 
 ## 進度日誌
 
-### 2026-07-08 ｜ Code ｜ 畫筆（自由手繪型態）｜ ⚠️ 完成待實測
+### 2026-07-08 ｜ Code ｜ 畫筆（自由手繪型態）｜ ✅ 完成（7/11 Spike 實測確認）
 - 圖上疊一層 canvas，畫筆自由手繪；每筆存 K 棒座標 [logical, price]，
   用 coordinateToLogical/logicalToCoordinate + coordinate/priceToCoordinate 換算，跟著縮放平移
 - 按鈕：✏ 畫筆（與水平線互斥）、⟲ 復原、清除（清水平線＋手繪）；依商品存 localStorage
 - 修：canvas 需 width/height:100%（replaced element，inset:0 不撐開）；chart 改 autoSize
 - 已驗證：載入無 JS 錯誤、按鈕/函式齊全、canvas 正確填滿、pointerdown 進得去、資料 631 根
-- **未驗證**：實際手繪畫面——preview 分頁被隱藏(document.hidden)、圖表不重繪，
-  coordinateToPrice 回 null，無法截圖。座標 API 與已驗證的水平線同一套，理應可用。請實測。
+- 7/8 preview 分頁被隱藏(document.hidden)無法截圖視覺驗證；
+  **7/11 Spike 實機測試確認：能畫黃色線、縮放平移跟著 K 棒，OK ✅**
+- 7/11 畫筆顏色由藍改黃（#ffeb3b）
 
 ### 2026-07-07 ｜ Code ｜ 畫水平線功能 ｜ ✅ 完成
 - web/index.html 用 Lightweight Charts createPriceLine 實作：按鈕切換畫線模式，
