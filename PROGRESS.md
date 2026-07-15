@@ -6,17 +6,59 @@
 ---
 
 ## 目前狀態
-- **最新完成**：7/10 盤後檢討 + 日內虧損控制規則新增（2026-07-11，Cowork）
+- **最新完成**：market_data 新增 FinLab 夜盤來源 + 型態掃描器可選型態彈窗（2026-07-15，Code）
 - **Code 最新**：K 線 UI 畫筆（自由手繪型態，黃色）已 Spike 實測確認 OK（2026-07-11）
 - **進行中**：無
 - **下一步候選**：
   1. 開盤前檢查清單 Word 文件 → 更新加入所有新規則（開盤價撐壓、W底試單、有子彈彈性、日內虧損控制）
   2. 5m 回測資料接入（reversal_pattern_study.py 已支援 5m，跑一次拿數字）
   3. 繼續每日交易日誌更新
+  4. 型態掃描器參數（放量倍數/容差/窗口）用實際盤中資料校準，目前是依演算法文件估的初始值
+  5. FinLab 免費帳號資料卡在 2018-12-28，TXN/MTXN/TMFN 夜盤要等升級付費方案才有最新資料
 
 ---
 
 ## 進度日誌
+
+### 2026-07-15 ｜ Code ｜ FinLab 夜盤來源 + 型態掃描器選項彈窗 + 下載選單修正 ｜ ✅ 完成
+- **FinLab skill 安裝**：`~/.claude/skills/finlab/`（官方一鍵腳本路徑對不上 repo 現況，改手動
+  git clone + 複製正確路徑）；`finlab.login()` 走 Google OAuth，token 存 `~/.finlab`
+- **新增 `sources/finlab_source.py`**：抓 FinLab `futures_price` 資料集的「盤後」欄位，補
+  TAIFEX 官方來源（僅日盤）沒有的夜盤 K 線。`symbols.py` 新增 `TXN`/`MTXN`/`TMFN` 三個商品
+  - ⚠️ 實測發現 FinLab 免費帳號 `futures_price` 資料集卡在 2018-12-28（日盤/夜盤皆同），
+    TMF 因 2024 才上市完全沒有重疊區間、抓不到任何資料；TXN/MTXN 抓到 403 根（2017~2018）
+  - `download.py` 加 `finlab` 來源分派；系統 Python 額外 `pip install finlab`
+- **舊版 exe 型態掃描 404 排查**：`dist/kbar-server.exe` 是 7/8 打包，早於 7/14 才加入的
+  `/patterns` 路由，掃描落到通用 404 回「not found」。重新 `python build_exe.py` 打包解決，
+  已用 Playwright 實測新 exe 掃描 MNQ 正常
+- **型態掃描新增可選型態**：`pattern_scanner.py` 加 `PATTERN_LABELS` 註冊表 + `available_types()`，
+  `scan_patterns(df, types=...)` 可篩選；`server.py` 新增 `GET /api/pattern_types`
+  - `web/index.html`：行內勾選框改成「⚙ 型態選項」按鈕 + 彈窗，清單**動態從後端抓**（以後新增
+    型態掃描邏輯只要在 `PATTERN_LABELS` 加一筆，UI 自動出現，不用改前端）；勾選即時重掃
+  - 圖上補畫型態「形狀線」（連接左肩→頭→右肩→進場關鍵點）+ 頭肩底改畫真正的斜線頸線
+    （左肩高點—右肩高點，取代原本不準確的水平支撐線）
+- **修 bug**：下載完成後「下載」下拉選單會跳回第一個商品（MNQ）而非停在剛下載的商品——
+  `loadDownloadControls()` 重建 `<option>` 時沒把選取值設回去，已補上
+- **實測**：全程用 Playwright 跑無頭瀏覽器驗證（勾選框過濾、彈窗開關、下載選單停留、
+  形狀線繪製），無 console 錯誤；用 curl 交叉驗證 `/patterns`、`/api/pattern_types` API
+
+### 2026-07-14 ｜ Code ｜ 2B/頭肩底型態掃描器 ｜ ✅ 完成
+- 規格：`tools/market_data/TASK_pattern_scanner.md`；演算法參考 Spike 18張進場圖歸納
+  （`D:/AI/Claude_Cowork_Projects/破底翻/破底翻_演算法.md`）
+- 新增 `pattern_scanner.py`（不依賴 scipy，只用 pandas/numpy，維持獨立可執行）：
+  - `detect_2b`：頭部放量破底(>近期均量×1.2) → 1~4根內反彈≥0.3% → 右肩不破頭部低點
+    → 右肩後收紅K且收盤在支撐之上 = 進場；右肩破頭部低點則判定 W 失效不產生訊號
+  - `detect_hns_bottom`：左肩/頭/右肩三低點，頭最低且放量創低，左右肩高度容差1%，
+    頸線用左右肩高點線性內插（非水平線），收盤突破頸線 = 進場
+  - 每筆回傳 pattern_type/head_idx/right_shoulder_idx/entry_idx/support_level/
+    head_volume/right_shoulder_volume/volume_ok（+ HnS 額外的 left_shoulder_idx/neckline）
+- `server.py` 新增 `GET /patterns?symbol=&interval=`，回傳型態清單（時間依 intraday
+  轉 epoch 對齊 K 棒，日線用日期字串），找不到資料回 404
+- `web/index.html` 新增「🔍 型態掃描」按鈕：呼叫 /patterns，用 candleSeries.setMarkers
+  疊加 頭(紅▼)/左右肩(橘●)/進場(綠▲) 標記 + 支撐/頸線虛線價格線；切商品/刻度時清空重掃
+- **實測**：`python pattern_scanner.py MNQ --interval 5m`（13311根，175個型態）；
+  headless 瀏覽器驗證按鈕點擊 → /patterns 200 → 圖上正確顯示標記與虛線，無 console 錯誤
+- 待辦：放量倍數/容差/窗口等參數目前是依演算法文件估的初始值，需累積更多實單資料校準
 
 ### 2026-07-08 ｜ Code ｜ 畫筆（自由手繪型態）｜ ✅ 完成（7/11 Spike 實測確認）
 - 圖上疊一層 canvas，畫筆自由手繪；每筆存 K 棒座標 [logical, price]，
@@ -108,6 +150,13 @@
   - `strategy/trend_filter.md` 第三關 → 新增「破底翻失敗就等 W 底第二低」進場規則
   - `strategy/journal_lessons.md` → 新增「回測驗證」章節 + 學習閉環連結
 - 輸出圖：`tools/reversal_patterns_{daily,1h,30m,15m}.png`、`reversal_interval_hist.png`
+
+### 2026-07-14 ｜ Cowork ｜ 7/13 盤後檢討 ｜ ✅ 完成
+- 分析 7/13 Performance CSV + Notion（-$636，回測高檔盤整）
+- 核心診斷：「吃到就虧」和「沒吃到」是同一問題兩面——空方亞當未確認就急進
+- 虧損分配：急進 -$203 / 情緒單三次 -$315 / 按鍵錯誤 -$60 / 計畫單磨損 -$97
+- 情緒單時序：10:37（20秒後）、14:07（3分鐘後）、21:30（6秒後）
+- 更新：`journal_lessons.md`（七月績效表加 7/13；7/13 教訓段落；學習閉環）
 
 ### 2026-07-11 ｜ Cowork ｜ 7/10 盤後檢討 + 日內虧損控制規則 ｜ ✅ 完成
 - 分析 7/10 Performance CSV + Notion（+$955.5，回測高檔盤整）

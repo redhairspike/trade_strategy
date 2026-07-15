@@ -29,6 +29,7 @@ def main():
         '--add-data', f'web{SEP}web',        # 打包前端頁面
         '--collect-all', 'yfinance',         # yfinance 的資料與子模組
         '--collect-all', 'curl_cffi',        # yfinance 依賴的二進位
+        '--collect-all', 'numpy',            # pattern_scanner.py 用到
         'server.py',
     ]
     print('執行：', ' '.join(cmd))

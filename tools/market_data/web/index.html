@@ -39,6 +39,16 @@
   #chart { width:100%; height:100%; }
   #pen { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5; }
   #pen.active { pointer-events:auto; cursor:crosshair; }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
+                    display:flex; align-items:center; justify-content:center; }
+  .modal { background:var(--panel); border:1px solid #363a45; border-radius:10px;
+           padding:18px 20px; min-width:240px; max-width:90vw; }
+  .modal h3 { margin:0 0 12px; font-size:15px; }
+  .modal-list { display:flex; flex-direction:column; gap:2px; max-height:50vh; overflow-y:auto; }
+  .modal-list label { display:flex; align-items:center; gap:8px; padding:7px 4px;
+                       cursor:pointer; font-size:14px; border-radius:6px; }
+  .modal-list label:hover { background:#2a2e39; }
+  .modal-actions { margin-top:14px; display:flex; justify-content:flex-end; }
 </style>
 </head>
 <body>
@@ -52,6 +62,8 @@
     <button class="ghost" id="penBtn" title="畫筆：開啟後在圖上自由手繪（標 W 底、破底翻、頭肩頂等型態）">✏ 畫筆</button>
     <button class="ghost" id="undoBtn" title="復原上一筆手繪">⟲ 復原</button>
     <button class="ghost" id="hlClear" title="清除此商品的所有畫線（水平線＋手繪）">清除</button>
+    <button class="ghost" id="patternBtn" title="型態掃描：偵測選取的型態並在圖上標記">🔍 型態掃描</button>
+    <button class="ghost" id="ptypeBtn" title="選擇要掃描/顯示哪些型態">⚙ 型態選項</button>
     <span class="meta" id="meta"></span>
     <span class="legend" id="legend"></span>
   </div>
@@ -66,6 +78,16 @@
     <span id="status"></span>
   </div>
 </header>
+<div id="ptypeOverlay" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>型態選項</h3>
+    <div id="ptypeList" class="modal-list"></div>
+    <div class="modal-actions">
+      <button class="primary" id="ptypeCloseBtn">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div id="chartWrap">
   <div id="chart"></div>
   <canvas id="pen"></canvas>
@@ -82,6 +104,8 @@ let penMode = false;                   // 畫筆模式
 let penStrokes = [];                   // 目前商品的手繪：每筆 = [[logical,price],...]
 let curStroke = null;                  // 正在畫的那一筆
 let penCtx = null;                     // 疊層 canvas 2d context
+let patternLines = [];                 // 型態掃描：支撐 price line（不進 localStorage，換圖重掃）
+let patternSeries = [];                // 型態掃描：形狀線/頸線 line series（不進 localStorage，換圖重掃）
 
 function fmt(n){ return n===undefined||n===null ? '—' : Number(n).toLocaleString('en-US',{maximumFractionDigits:2}); }
 
@@ -224,6 +248,108 @@ function setupPen(){
   c.addEventListener('pointerleave', finish);
 }
 
+// ---- 型態掃描（2B / 頭肩底）：呼叫 /patterns，疊加標記 + 形狀線 + 頸線/支撐線 ----
+function clearPatterns(){
+  candleSeries.setMarkers([]);
+  patternLines.forEach(l => candleSeries.removePriceLine(l));
+  patternLines = [];
+  patternSeries.forEach(s => chart.removeSeries(s));
+  patternSeries = [];
+}
+
+function addShapeLine(points, color){
+  const s = chart.addLineSeries({
+    color, lineWidth:1, lastValueVisible:false, priceLineVisible:false, crosshairMarkerVisible:false,
+  });
+  s.setData(points);
+  patternSeries.push(s);
+}
+
+function renderPatterns(patterns){
+  clearPatterns();
+  const markers = [];
+  for(const p of patterns){
+    const shapeColor = p.pattern_type === '2B' ? '#42a5f5' : '#ab47bc';
+    if(p.left_shoulder_time != null){
+      markers.push({ time:p.left_shoulder_time, position:'belowBar', color:'#ffa726', shape:'circle', text:'左肩' });
+    }
+    markers.push({ time:p.head_time, position:'aboveBar', color:'#ef5350', shape:'arrowDown', text:'頭' });
+    markers.push({ time:p.right_shoulder_time, position:'belowBar', color:'#ffa726', shape:'circle', text:'右肩' });
+    markers.push({ time:p.entry_time, position:'belowBar', color:'#26a69a', shape:'arrowUp', text:'進場' });
+
+    // 形狀線：連接關鍵擺動點，直接看出型態走勢（左肩→頭→右肩→進場）
+    const shapePts = [];
+    if(p.left_shoulder_time != null) shapePts.push({ time:p.left_shoulder_time, value:p.left_shoulder_price });
+    shapePts.push({ time:p.head_time, value:p.head_price });
+    shapePts.push({ time:p.right_shoulder_time, value:p.right_shoulder_price });
+    shapePts.push({ time:p.entry_time, value:p.entry_price });
+    addShapeLine(shapePts, shapeColor);
+
+    if(p.neckline_start_time != null){
+      // 頭肩底：實際的頸線（左肩高點—右肩高點斜線），比水平支撐線更準確
+      addShapeLine([
+        { time:p.neckline_start_time, value:p.neckline_start_price },
+        { time:p.neckline_end_time, value:p.neckline_end_price },
+      ], '#ffca28');
+    } else {
+      // 2B：水平支撐虛線
+      patternLines.push(candleSeries.createPriceLine({
+        price:p.support_level, color:'#78909c', lineWidth:1,
+        lineStyle:LightweightCharts.LineStyle.Dashed, axisLabelVisible:true,
+        title:p.pattern_type,
+      }));
+    }
+  }
+  markers.sort((a,b)=> (a.time > b.time ? 1 : a.time < b.time ? -1 : 0));
+  candleSeries.setMarkers(markers);
+}
+
+// ---- 型態選項彈窗：型態清單從後端動態抓，之後新增型態掃描不用改前端 ----
+let PATTERN_TYPES = [];          // [{key,label}]，來自 /api/pattern_types
+let selectedTypes = new Set();   // 目前勾選的型態 key
+
+async function loadPatternTypes(){
+  PATTERN_TYPES = await (await fetch('/api/pattern_types')).json();
+  selectedTypes = new Set(PATTERN_TYPES.map(t=>t.key));   // 預設全選
+  renderPtypeList();
+}
+
+function renderPtypeList(){
+  const box = $('#ptypeList'); box.innerHTML = '';
+  for(const t of PATTERN_TYPES){
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = selectedTypes.has(t.key);
+    cb.onchange = ()=>{
+      if(cb.checked) selectedTypes.add(t.key); else selectedTypes.delete(t.key);
+      if(patternLines.length || patternSeries.length) scanPatterns();   // 即時生效
+    };
+    label.appendChild(cb);
+    label.append(t.label);
+    box.appendChild(label);
+  }
+}
+
+function openPtypeModal(){ $('#ptypeOverlay').style.display = 'flex'; }
+function closePtypeModal(){ $('#ptypeOverlay').style.display = 'none'; }
+
+function selectedPatternTypes(){ return [...selectedTypes]; }
+
+async function scanPatterns(){
+  if(!cur.key) return;
+  const types = selectedPatternTypes();
+  if(!types.length){ setStatus('請先在「型態選項」勾選至少一種型態', 'err'); return; }
+  setStatus('<span class="dot"></span>型態掃描中…');
+  try{
+    const r = await fetch(`/patterns?symbol=${encodeURIComponent(cur.key)}&interval=${cur.interval}&types=${types.join(',')}`);
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    renderPatterns(d.patterns);
+    const labels = PATTERN_TYPES.filter(t=>selectedTypes.has(t.key)).map(t=>t.label);
+    setStatus(`✓ 偵測到 ${d.patterns.length} 個型態（${labels.join('、')}）`, 'ok');
+  }catch(e){ setStatus('掃描失敗：'+e.message, 'err'); }
+}
+
 function penKey(){ return 'pen_' + cur.key; }
 function savePen(){ try{ localStorage.setItem(penKey(),
   JSON.stringify(penStrokes.map(s => s.map(pt => [+pt[0].toFixed(3), +pt[1].toFixed(4)])))); }catch(e){} }
@@ -281,18 +407,22 @@ async function loadData(key, interval){
   chart.timeScale().fitContent();
   renderStoredLines();          // 載入此商品先前畫的水平線
   renderPen();                  // 載入此商品先前的手繪
+  clearPatterns();              // 型態掃描結果不持久化，換商品/刻度需重新掃描
 }
 
 // ---- 下載列 ----
-async function loadDownloadControls(){
+async function loadDownloadControls(selectKey){
   const insts = await (await fetch('/api/instruments')).json();
-  const sSel = $('#dlSymbol'); sSel.innerHTML='';
+  const sSel = $('#dlSymbol');
+  const keep = selectKey || sSel.value;   // 重建選單後把選取值還原，不要跳回第一個
+  sSel.innerHTML='';
   for(const it of insts){
     const o = document.createElement('option');
     o.value = it.key; o.dataset.source = it.source;
     o.textContent = `${it.key}  ${it.name}${it.downloaded? ' ✓':''}`;
     sSel.appendChild(o);
   }
+  if(insts.some(it=>it.key===keep)) sSel.value = keep;
   const ivs = await (await fetch('/api/intervals')).json();
   const iSel = $('#dlInterval'); iSel.innerHTML='';
   for(const iv of ivs){
@@ -336,7 +466,7 @@ async function startDownload(){
   }catch(e){ setStatus('啟動失敗：'+e.message,'err'); enableBtns(); return; }
   pollJob(job.job, `${job.name} 下載中`, async ()=>{
     enableBtns();
-    await loadDownloadControls();
+    await loadDownloadControls(job.key);
     await refreshSymbols(job.key, job.interval);
   });
 }
@@ -382,6 +512,7 @@ async function boot(){
   initChart();
   await loadDownloadControls();
   await refreshSymbols();
+  await loadPatternTypes();
   $('#dlBtn').onclick = startDownload;
   $('#updBtn').onclick = updateAll;
 
@@ -394,6 +525,10 @@ async function boot(){
   $('#penBtn').onclick = ()=>{ const on=!penMode; if(on) setHlMode(false); setPenMode(on); };
   $('#undoBtn').onclick = undoPen;
   $('#hlClear').onclick = clearLines;
+  $('#patternBtn').onclick = scanPatterns;
+  $('#ptypeBtn').onclick = openPtypeModal;
+  $('#ptypeCloseBtn').onclick = closePtypeModal;
+  $('#ptypeOverlay').onclick = (e)=>{ if(e.target.id==='ptypeOverlay') closePtypeModal(); };
 }
 boot();
 </script>

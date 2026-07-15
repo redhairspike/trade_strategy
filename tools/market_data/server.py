@@ -17,6 +17,8 @@ K 線檢視 UI 的本機伺服器（含線上下載、多時間刻度）
     POST /api/download {symbol,interval,start} → 啟動下載，回 job_id
     POST /api/update_all               → 更新所有已下載的 (商品,刻度)
     GET  /api/download_status?job=ID    → 進度/結果
+    GET  /api/pattern_types              → 可用的型態掃描種類（供 UI 動態列出）
+    GET  /patterns?symbol=&interval=&types= → 型態掃描結果（types 逗號分隔，省略=全部）
 """
 
 import io
@@ -35,6 +37,7 @@ from urllib.parse import urlparse, parse_qs
 
 import symbols
 import download as dl
+import pattern_scanner
 from intervals import INTERVALS, ORDER, label as iv_label, is_intraday
 
 # 路徑：打包成 exe 後，web 是包在 exe 內的唯讀資源，data 放 exe 旁邊（可寫）
@@ -253,6 +256,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, data)
         if u.path == '/api/download_status':
             return self._job_status((q.get('job') or [''])[0])
+        if u.path == '/api/pattern_types':
+            return self._send(200, pattern_scanner.available_types())
+        if u.path == '/patterns':
+            key = (q.get('symbol') or [''])[0]
+            interval = (q.get('interval') or ['5m'])[0]
+            types_param = (q.get('types') or [''])[0]
+            types = {t for t in types_param.split(',') if t} or None
+            try:
+                patterns = pattern_scanner.scan_from_csv(key, interval, types=types)
+            except FileNotFoundError as e:
+                return self._send(404, {'error': str(e)})
+            return self._send(200, {'patterns': patterns})
         return self._send(404, {'error': 'not found'})
 
     def do_POST(self):

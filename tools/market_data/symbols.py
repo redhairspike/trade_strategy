@@ -6,7 +6,9 @@
 
 來源說明：
   yahoo  ── Yahoo Finance（yfinance），美股期貨用連續近月代理（NQ=F 等）
-  taifex ── 台灣期交所官方每日下載，建構「最活躍合約」連續日K
+  taifex ── 台灣期交所官方每日下載，建構「最活躍合約」連續日K（只有日盤）
+  finlab ── FinLab futures_price 資料集，補 TAIFEX 沒有的夜盤（盤後）K線
+            ⚠️ 免費帳號資料只到 2018-12-28，需付費方案才有最新資料
 """
 
 from dataclasses import dataclass
@@ -32,6 +34,11 @@ REGISTRY = {
     'TX':  Instrument('TX',  '大台（臺股期貨）',   'taifex', 'TX',  '1998 上市，歷史最長，回測首選'),
     'MTX': Instrument('MTX', '小台（小型臺指）',   'taifex', 'MTX', '2001 上市，歷史長，回測首選'),
     'TMF': Instrument('TMF', '微台（微型臺指）',   'taifex', 'TMF', '2024 才上市，歷史短，僅供近期實盤對照'),
+
+    # ---- 台指期夜盤（FinLab，補 TAIFEX 官方來源沒有的盤後時段）----
+    'TXN':  Instrument('TXN',  '大台夜盤',  'finlab', 'TX盤後',  '⚠️ FinLab 免費帳號僅到 2018-12-28，付費方案才有最新'),
+    'MTXN': Instrument('MTXN', '小台夜盤',  'finlab', 'MTX盤後', '⚠️ FinLab 免費帳號僅到 2018-12-28，付費方案才有最新'),
+    'TMFN': Instrument('TMFN', '微台夜盤',  'finlab', 'TMF盤後', '⚠️ FinLab 免費帳號僅到 2018-12-28，付費方案才有最新'),
 }
 
 # 中文 / 常見別名 -> key
@@ -42,6 +49,9 @@ ALIASES = {
     '大台': 'TX', '臺股期貨': 'TX', '台指期': 'TX', 'TXF': 'TX', 'TX': 'TX',
     '小台': 'MTX', '小型臺指': 'MTX', '小型台指': 'MTX', 'MXF': 'MTX', 'MTX': 'MTX',
     '微台': 'TMF', '微型臺指': 'TMF', '微型台指': 'TMF', 'TMF': 'TMF',
+    '大台夜盤': 'TXN', '大台夜盤期貨': 'TXN', 'TXN': 'TXN',
+    '小台夜盤': 'MTXN', 'MTXN': 'MTXN',
+    '微台夜盤': 'TMFN', 'TMFN': 'TMFN',
 }
 
 

@@ -23,7 +23,7 @@ import pandas as pd
 
 import symbols
 from intervals import INTERVALS, ORDER, is_intraday
-from sources import yahoo, taifex, tradingview
+from sources import yahoo, taifex, tradingview, finlab_source
 
 if getattr(sys, 'frozen', False):
     # 打包成 exe 後：data 放在 exe 旁邊（可寫、資料能保存）
@@ -56,6 +56,13 @@ def fetch_one(inst: symbols.Instrument, interval: str, start: str, end: str | No
                 "TAIFEX 免費來源只有日K；台指分鐘資料(60/15/5/1分)需券商 API（如永豐 Shioaji）。")
         tw_start = start if start > '1998-01-01' else '1998-01-01'
         return taifex.fetch_daily(inst.ticker, start=tw_start, end=end)
+
+    if inst.source == 'finlab':
+        if is_intraday(interval):
+            raise RuntimeError("FinLab 夜盤來源目前只支援日K。")
+        if not finlab_source.available():
+            raise RuntimeError("未安裝 finlab 套件，執行：pip install finlab")
+        return finlab_source.fetch_daily(inst.ticker, start=start, end=end)
 
     raise ValueError(f"未知來源：{inst.source}")
 

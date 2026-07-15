@@ -9,12 +9,16 @@
 | MNQ | 微型納斯達克 | Yahoo（NQ=F 代理） | 美股 |
 | MGC | 微型黃金 | Yahoo（GC=F 代理） | 美股 |
 | MCL | 微型原油 | Yahoo（CL=F 代理） | 美股 |
-| TX  | 大台（臺股期貨） | TAIFEX 官方 | 1998 上市，歷史最長，**回測首選** |
-| MTX | 小台（小型臺指） | TAIFEX 官方 | 2001 上市，歷史長，**回測首選** |
-| TMF | 微台（微型臺指） | TAIFEX 官方 | 2024 才上市，僅 ~1 年，供近期實盤對照 |
+| TX  | 大台（臺股期貨） | TAIFEX 官方 | 1998 上市，歷史最長，**回測首選**（僅日盤）|
+| MTX | 小台（小型臺指） | TAIFEX 官方 | 2001 上市，歷史長，**回測首選**（僅日盤）|
+| TMF | 微台（微型臺指） | TAIFEX 官方 | 2024 才上市，僅 ~1 年，供近期實盤對照（僅日盤）|
+| TXN  | 大台夜盤 | FinLab | 補 TAIFEX 沒有的盤後時段。⚠️ 免費帳號資料僅到 2018-12-28 |
+| MTXN | 小台夜盤 | FinLab | 同上 |
+| TMFN | 微台夜盤 | FinLab | 同上 |
 
 > 微台/小台/大台追蹤同一個加權指數，K 線走勢一致，差別只在合約規格。
 > **建議用大台/小台的長歷史回測，訊號直接適用於實際交易的微台。**
+> TAIFEX 官方來源只抓日盤（排除夜盤避免同日重複）；夜盤要另外用 TXN/MTXN/TMFN（FinLab 來源）。
 
 ## 安裝
 
@@ -22,7 +26,13 @@
 pip install yfinance requests pandas
 # 選配（官方來源抓不到時的備援）：
 pip install tvDatafeed        # 需設環境變數 TV_USERNAME / TV_PASSWORD
+# 選配（抓 TXN/MTXN/TMFN 夜盤用）：
+pip install finlab
+python -c "import finlab; finlab.login()"   # 第一次登入，開瀏覽器走 Google OAuth，token 存 ~/.finlab
 ```
+
+> **FinLab 免費帳號限制**：`futures_price` 資料集（大/小/微台夜盤的來源）免費方案只到
+> 2018-12-28，之後的資料需要付費方案才能取得。抓 TXN/MTXN/TMFN 目前只能拿到 2018 年底以前的歷史。
 
 ## 用法
 
@@ -109,9 +119,10 @@ market_data/
 ├── server.py           # K 線 UI 本機伺服器 + 資料 API
 ├── build_exe.py        # 打包成單一 exe（PyInstaller）
 ├── sources/
-│   ├── yahoo.py        # Yahoo Finance 來源
-│   ├── taifex.py       # 台灣期交所官方來源
-│   └── tradingview.py  # tvDatafeed 備援（選配）
+│   ├── yahoo.py         # Yahoo Finance 來源
+│   ├── taifex.py        # 台灣期交所官方來源（日盤）
+│   ├── finlab_source.py # FinLab 來源（台指夜盤，選配，見上方限制）
+│   └── tradingview.py   # tvDatafeed 備援（選配）
 ├── web/index.html      # Lightweight Charts 前端
 └── data/               # 下載的 CSV（不入 git）
 ```
