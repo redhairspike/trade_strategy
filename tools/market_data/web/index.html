@@ -269,6 +269,19 @@ function renderPatterns(patterns){
   clearPatterns();
   const markers = [];
   for(const p of patterns){
+    if(p.pattern_type === 'adam_flip_bull' || p.pattern_type === 'adam_flip_bear'){
+      // 翻亞當是逐根K棒的獨立訊號，只有進場點，沒有頭/右肩/支撐可畫
+      const bull = p.pattern_type === 'adam_flip_bull';
+      markers.push({
+        time: p.entry_time,
+        position: bull ? 'belowBar' : 'aboveBar',
+        color: bull ? '#26a69a' : '#ef5350',
+        shape: bull ? 'arrowUp' : 'arrowDown',
+        text: `翻亞當${bull ? '多' : '空'}`,
+      });
+      continue;
+    }
+
     const shapeColor = p.pattern_type === '2B' ? '#42a5f5' : '#ab47bc';
     if(p.left_shoulder_time != null){
       markers.push({ time:p.left_shoulder_time, position:'belowBar', color:'#ffa726', shape:'circle', text:'左肩' });
